@@ -2,7 +2,7 @@
 
 > File này **tự sinh** bởi `scripts/grade.py`. **Không** viết / sửa tay.
 
-- Generated (UTC): `2026-09-26T15:40:43.557056+00:00`
+- Generated (UTC): `2026-09-26T15:42:47.151881+00:00`
 - Framework: `google-adk`
 - Technical failure: **False**
 
@@ -42,11 +42,11 @@
 ..........                                                               [100%]
 ============================== warnings summary ===============================
 .venv\Lib\site-packages\_pytest\cacheprovider.py:469
-  D:\VinAIinAction\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\.venv\Lib\site-packages\_pytest\cacheprovider.py:469: PytestCacheWarning: could not create cache path D:\VinAIinAction\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\.pytest_cache\v\cache\nodeids: [WinError 5] Access is denied: 'D:\\VinAIinAction\\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\\pytest-cache-files-rsuympyg'
+  D:\VinAIinAction\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\.venv\Lib\site-packages\_pytest\cacheprovider.py:469: PytestCacheWarning: could not create cache path D:\VinAIinAction\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\.pytest_cache\v\cache\nodeids: [WinError 5] Access is denied: 'D:\\VinAIinAction\\K4-L3A-Day11-NguyenQuocDat-2A202602369-Guardrails-HITL-Responsible-AI\\pytest-cache-files-i52a7m7_'
     config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-10 passed, 1 warning in 1.20s
+10 passed, 1 warning in 1.45s
 ```
 
 ## Notes
