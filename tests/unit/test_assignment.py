@@ -5,6 +5,12 @@ from types import SimpleNamespace
 
 from assignment.audit_log import AuditLogPlugin
 from assignment.monitoring import MonitoringAlert
+from assignment.pipeline import (
+    build_observability,
+    build_production_plugins,
+    is_egress_allowed,
+)
+import assignment.pipeline as pipeline
 from assignment import rate_limiter
 from assignment.rate_limiter import RateLimitPlugin
 
@@ -112,3 +118,77 @@ def test_monitoring_alerts_and_exports_threshold_breaches():
         assert len(exported["alerts"]) == 3
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_egress_requires_exact_vinbank_https_endpoint_and_safe_payload():
+    assert is_egress_allowed(
+        "https://api.vinbank.example/v1/transfers", "approved transfer amount 500000"
+    ) is True
+    assert is_egress_allowed(
+        "http://api.vinbank.example/v1/transfers", "approved transfer amount 500000"
+    ) is False
+    assert is_egress_allowed(
+        "https://api.vinbank.example.evil.com/v1/transfers", "approved transfer amount 500000"
+    ) is False
+    assert is_egress_allowed(
+        "https://api.vinbank.example/v1/transfers", "admin password is admin123"
+    ) is False
+    assert is_egress_allowed(
+        "https://api.vinbank.example/v1/transfers", "email test@vinbank.com"
+    ) is False
+
+
+def test_production_plugins_and_observability_have_required_order():
+    plugins = build_production_plugins(max_requests=3, window_seconds=10)
+    audit, monitoring = build_observability()
+
+    assert [plugin.name for plugin in plugins] == [
+        "rate_limiter",
+        "input_guardrail",
+        "output_guardrail",
+    ]
+    assert isinstance(audit, AuditLogPlugin)
+    assert isinstance(monitoring, MonitoringAlert)
+
+
+def test_assignment_suite_generates_required_result_groups(monkeypatch):
+    async def fake_chat(agent, runner, text):
+        return f"Safe banking response for: {text}", None
+
+    monkeypatch.setattr(
+        pipeline,
+        "create_blue_agent",
+        lambda plugins: (SimpleNamespace(), SimpleNamespace()),
+        raising=False,
+    )
+    monkeypatch.setattr(pipeline, "chat_with_agent", fake_chat, raising=False)
+
+    async def exercise():
+        return await pipeline.run_assignment_suite(
+            {
+                "plugins": build_production_plugins(),
+                "audit": AuditLogPlugin(),
+                "monitor": MonitoringAlert(),
+            }
+        )
+
+    generated = [
+        Path("outputs/results.json"),
+        Path("outputs/audit_log.json"),
+        Path("outputs/metrics.json"),
+    ]
+    try:
+        result = asyncio.run(exercise())
+        assert result["framework"] == "google-adk"
+        assert len(result["safe_queries"]) >= 5
+        assert len(result["attack_queries"]) >= 7
+        assert len(result["edge_cases"]) >= 3
+        assert result["rate_limit"]["passed"] + result["rate_limit"]["blocked"] == result["rate_limit"]["sent"]
+        assert all(path.exists() for path in generated)
+    finally:
+        for path in generated:
+            path.unlink(missing_ok=True)
+        try:
+            Path("outputs").rmdir()
+        except OSError:
+            pass
