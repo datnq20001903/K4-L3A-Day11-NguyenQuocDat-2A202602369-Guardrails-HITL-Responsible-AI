@@ -32,12 +32,11 @@ _INVISIBLE_CHARS = re.compile(
 _WHITESPACE = re.compile(r"\s+")
 
 
-def _normalize_for_security(value: str) -> str:
+def _normalize_for_security(value: str, *, join_invisible: bool = False) -> str:
     """Normalize Unicode and invisible spacing before security checks."""
     normalized = unicodedata.normalize("NFKC", value or "")
-    # Treat hidden separators as whitespace so ``Ignore\u200ball`` remains
-    # equivalent to ``Ignore all`` without joining unrelated words.
-    normalized = _INVISIBLE_CHARS.sub(" ", normalized)
+    replacement = "" if join_invisible else " "
+    normalized = _INVISIBLE_CHARS.sub(replacement, normalized)
     return _WHITESPACE.sub(" ", normalized).strip()
 
 
@@ -59,6 +58,18 @@ INJECTION_PATTERNS = (
 )
 
 _ALLOWED_TOPIC_ALIASES = ("chuyen khoan",)
+_BLOCKED_ACTION_PATTERNS = (
+    r"\b(?:commit|perform|carry\s+out)\s+(?:a\s+)?(?:fraud|scam|phishing)\b",
+)
+
+
+def _contains_topic(text: str, topic: str) -> bool:
+    """Match a whole topic word or normalized multi-word phrase."""
+    normalized_topic = _normalize_for_topic(topic)
+    if not normalized_topic:
+        return False
+    phrase = re.escape(normalized_topic).replace(r"\ ", r"\s+")
+    return re.search(rf"(?<!\w){phrase}(?!\w)", text) is not None
 
 
 # ============================================================
@@ -89,10 +100,14 @@ def detect_injection(user_input: str) -> InputStatus:
     Returns:
         ``"BLOCK"`` if injection detected (chặn), ``"ALLOW"`` otherwise (cho qua).
     """
-    normalized = _normalize_for_security(user_input)
-    for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, normalized, re.IGNORECASE):
-            return "BLOCK"
+    normalized_variants = {
+        _normalize_for_security(user_input),
+        _normalize_for_security(user_input, join_invisible=True),
+    }
+    for normalized in normalized_variants:
+        for pattern in INJECTION_PATTERNS:
+            if re.search(pattern, normalized, re.IGNORECASE):
+                return "BLOCK"
     return "ALLOW"
 
 
@@ -119,13 +134,15 @@ def topic_filter(user_input: str) -> InputStatus:
     """
     input_lower = _normalize_for_topic(user_input)
     blocked_topics = (_normalize_for_topic(topic) for topic in BLOCKED_TOPICS)
-    if any(topic in input_lower for topic in blocked_topics):
+    if any(_contains_topic(input_lower, topic) for topic in blocked_topics):
+        return "BLOCK"
+    if any(re.search(pattern, input_lower) for pattern in _BLOCKED_ACTION_PATTERNS):
         return "BLOCK"
 
     allowed_topics = (_normalize_for_topic(topic) for topic in ALLOWED_TOPICS)
-    if any(topic in input_lower for topic in allowed_topics):
+    if any(_contains_topic(input_lower, topic) for topic in allowed_topics):
         return "ALLOW"
-    if any(alias in input_lower for alias in _ALLOWED_TOPIC_ALIASES):
+    if any(_contains_topic(input_lower, alias) for alias in _ALLOWED_TOPIC_ALIASES):
         return "ALLOW"
     return "BLOCK"
 
